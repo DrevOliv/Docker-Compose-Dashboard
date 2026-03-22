@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ app_item.name }} · Docker Compose Manager</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell detail-shell" data-app-id="{{ app_item.id }}">
+    <a class="back-link" href="/">Back to dashboard</a>
+    <section class="detail-hero">
+      <div class="detail-icon" style="--app-color: {{ app_item.color }};">
+        <span>{{ app_item.icon }}</span>
+      </div>
+      <div class="detail-copy">
+        <p class="eyebrow">Compose App</p>
+        <h1>{{ app_item.name }}</h1>
+        <p>{{ app_item.folder_path }}</p>
+        <div class="status-row">
+          <span class="status-pill state-{{ runtime.overall_state }}">{{ runtime.overall_state }}</span>
+          <span class="status-pill health-{{ runtime.health }}">{{ runtime.health }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="detail-layout">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Actions</h2>
+          <button class="secondary-button" id="refresh-status">Refresh status</button>
+        </div>
+        <div class="action-grid">
+          <button class="primary-button" data-action="up">Start</button>
+          <button class="secondary-button" data-action="pull">Pull images</button>
+          <button class="secondary-button" data-action="restart">Restart</button>
+          <button class="danger-button" data-action="down">Stop</button>
+          <button class="primary-button" data-action="refresh">Refresh</button>
+        </div>
+        <p class="form-message" id="action-message"></p>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Service Links</h2>
+        </div>
+        <div class="service-links">
+          {% if app_item.links %}
+            {% for link in app_item.links %}
+            <a href="{{ link.url }}" target="_blank" rel="noreferrer">{{ link.label }}</a>
+            {% endfor %}
+          {% else %}
+            <p class="muted">No links</p>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Services</h2>
+        </div>
+        <div id="service-status-list" class="service-status-list">
+          {% if runtime.services %}
+            {% for service in runtime.services %}
+            <div class="service-row">
+              <div>
+                <strong>{{ service.name }}</strong>
+                <p>{{ service.published_ports | join(", ") if service.published_ports else "No published ports" }}</p>
+              </div>
+              <div class="status-row">
+                <span class="status-pill state-{{ service.state }}">{{ service.state }}</span>
+                <span class="status-pill health-{{ service.health }}">{{ service.health }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="muted">No services</p>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Settings</h2>
+        </div>
+        <form id="update-app-form" class="modal-form inline-form">
+          <label>
+            Name
+            <input type="text" name="name" value="{{ app_item.name }}" required />
+          </label>
+          <label>
+            Folder path
+            <input type="text" name="folder_path" value="{{ app_item.folder_path }}" required />
+          </label>
+          <label>
+            Compose file
+            <input type="text" name="compose_file" value="{{ app_item.compose_file or '' }}" placeholder="Only needed for custom filenames" />
+          </label>
+          <p class="field-note">Common compose filenames are found automatically.</p>
+          <div class="split-fields">
+            <label>
+              Icon text
+              <input type="text" name="icon" value="{{ app_item.icon }}" maxlength="10" />
+            </label>
+            <label class="color-field">
+              Accent color
+              <input class="color-swatch-input" type="color" name="color" value="{{ app_item.color }}" data-color-input />
+            </label>
+          </div>
+          <label>
+            Notes
+            <textarea name="notes" rows="4">{{ app_item.notes }}</textarea>
+          </label>
+          <div class="link-editor" id="update-links"></div>
+          <button type="button" class="secondary-button" data-add-link="update-links">Add link</button>
+          <div class="form-row">
+            <button type="submit" class="primary-button">Save changes</button>
+            <button type="button" class="danger-button" id="delete-app">Delete app</button>
+          </div>
+          <p class="form-message" id="update-form-message"></p>
+        </form>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    window.__APP_DETAIL__ = {
+      app: {{ app_item | tojson }},
+      runtime: {{ runtime | tojson }}
+    };
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

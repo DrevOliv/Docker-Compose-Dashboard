@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docker Compose Manager</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="topbar">
+      <p class="corner-title">Docker Apps</p>
+      <button class="plus-button" data-open-create aria-label="Add app">
+        <span class="plus-icon">+</span>
+        <span class="plus-label">Add app</span>
+      </button>
+    </section>
+
+    <section class="grid-section">
+      <div class="section-head">
+        <h2>Apps</h2>
+      </div>
+      <div class="app-grid" id="app-grid">
+        {% for app in apps %}
+        <article class="app-tile" data-app-id="{{ app.id }}">
+          <a class="app-tile-link" href="/apps/{{ app.id }}">
+            <div class="app-icon-shell">
+              <div class="app-icon app-icon-dashboard" style="--app-color: {{ app.color }};">
+                <span>{{ app.icon }}</span>
+              </div>
+              <span class="app-health-dot health-{{ app.runtime.health }}" title="{{ app.runtime.health }}"></span>
+              <span class="app-settings-chip">Settings</span>
+            </div>
+            <div class="app-labels">
+              <h3>{{ app.name }}</h3>
+              <p>{{ app.runtime.health }}</p>
+            </div>
+          </a>
+          <div class="app-tile-links">
+            {% if app.links %}
+              {% for link in app.links[:3] %}
+              <a href="{{ link.url }}" target="_blank" rel="noreferrer">{{ link.label }}</a>
+              {% endfor %}
+            {% else %}
+              <span class="muted">No links</span>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% if not apps %}
+      <div class="empty-state">
+        <h3>No apps yet</h3>
+      </div>
+      {% endif %}
+    </section>
+  </main>
+
+  <dialog class="modal" id="create-modal">
+    <form class="modal-form" id="create-app-form">
+      <div class="modal-head">
+        <h2>Add compose app</h2>
+        <button type="button" class="ghost-button" data-close-modal>Close</button>
+      </div>
+      <label>
+        Name
+        <input type="text" name="name" placeholder="Media" required />
+      </label>
+      <label>
+        Folder path
+        <input type="text" name="folder_path" placeholder="/path/to/app" required />
+      </label>
+      <label>
+        Compose file
+        <input type="text" name="compose_file" placeholder="Only needed for custom filenames" />
+      </label>
+      <p class="field-note">Common compose filenames are found automatically.</p>
+      <div class="split-fields">
+        <label>
+          Icon text
+          <input type="text" name="icon" value="cube" maxlength="10" />
+        </label>
+        <label class="color-field">
+          Accent color
+          <input class="color-swatch-input" type="color" name="color" value="#2563eb" data-randomize-color data-color-input />
+        </label>
+      </div>
+      <label>
+        Notes
+        <textarea name="notes" rows="3" placeholder="Notes"></textarea>
+      </label>
+      <div class="link-editor" id="create-links"></div>
+      <button type="button" class="secondary-button" data-add-link="create-links">Add link</button>
+      <button type="submit" class="primary-button">Save app</button>
+      <p class="form-message" id="create-form-message"></p>
+    </form>
+  </dialog>
+
+  <script>
+    window.__INITIAL_APPS__ = {{ apps | tojson }};
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
