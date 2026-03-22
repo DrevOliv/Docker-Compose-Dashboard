@@ -1,0 +1,13 @@
+name: "Compose Maganger"
+
+services:
+    compose-manager:
+        image: drevoliv/compose-manager:latest
+        container_name: "Compose_Service_Manager"
+        ports:
+            - 8000:8000
+        volumes:
+            - ./data:/app/data
+            - /var/run/docker.sock:/var/run/docker.sock
+            # adding the serices: 
+            # Ex: - /home/server/serivece1:/apps/service1

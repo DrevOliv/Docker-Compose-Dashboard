@@ -1,5 +1,59 @@
 const initialApps = window.__INITIAL_APPS__ || null;
 const detailData = window.__APP_DETAIL__ || null;
+const TABLER_VERSION = "3.40.0";
+const iconChoices = [
+  "cube",
+  "server",
+  "database",
+  "cloud",
+  "shield",
+  "world",
+  "home",
+  "settings",
+  "tool",
+  "tools",
+  "wrench",
+  "terminal-2",
+  "command",
+  "brand-docker",
+  "brand-youtube",
+  "device-tv",
+  "device-desktop",
+  "device-laptop",
+  "router",
+  "wifi",
+  "player-play",
+  "movie",
+  "photo",
+  "camera",
+  "music",
+  "disc",
+  "cast",
+  "apps",
+  "layout-dashboard",
+  "layout-grid",
+  "stack-2",
+  "package",
+  "archive",
+  "folder",
+  "folders",
+  "file-text",
+  "download",
+  "upload",
+  "refresh",
+  "activity",
+  "bolt",
+  "flame",
+  "rocket",
+  "star",
+  "heart",
+  "lock",
+  "key",
+  "search",
+  "chart-bar",
+  "chart-pie",
+  "cpu",
+];
 
 function randomColor() {
   const hue = Math.floor(Math.random() * 360);
@@ -26,6 +80,87 @@ function wireColorInputs() {
       input.value = randomColor();
     }
   });
+}
+
+function wireIconPickers() {
+  document.querySelectorAll(".icon-picker-field").forEach((field) => {
+    const picker = field.querySelector("[data-icon-picker]");
+    const hiddenInput = field.querySelector("[data-icon-value]");
+    const popup = field.querySelector("[data-icon-popup]");
+    const trigger = field.querySelector("[data-icon-trigger]");
+    const searchInput = field.querySelector("[data-icon-search]");
+    const preview = field.querySelector("[data-icon-preview]");
+    const label = field.querySelector("[data-icon-label]");
+
+    if (!picker || !hiddenInput || !popup || !trigger || !searchInput || !preview || !label) return;
+
+    const drawPreview = (iconName) => {
+      preview.innerHTML = tablerIconImage(iconName, "icon-inline-image");
+      label.textContent = iconName;
+    };
+
+    const renderChoices = (query = "") => {
+      const normalized = query.trim().toLowerCase();
+      const currentValue = iconChoices.includes(hiddenInput.value) ? hiddenInput.value : "cube";
+      const filtered = iconChoices.filter((icon) => icon.includes(normalized));
+      picker.innerHTML = filtered
+        .map(
+          (icon) => `
+            <button
+              type="button"
+              class="icon-choice${icon === currentValue ? " is-selected" : ""}"
+              data-icon-choice="${escapeHtml(icon)}"
+              aria-label="Choose ${escapeHtml(icon)}"
+              title="${escapeHtml(icon)}"
+            >
+              ${tablerIconImage(icon, "icon-choice-image")}
+            </button>
+          `
+        )
+        .join("");
+
+      picker.querySelectorAll("[data-icon-choice]").forEach((button) => {
+        button.addEventListener("click", () => {
+          hiddenInput.value = button.dataset.iconChoice || "cube";
+          drawPreview(hiddenInput.value);
+          renderChoices(searchInput.value);
+          popup.hidden = true;
+        });
+      });
+    };
+
+    const currentValue = iconChoices.includes(hiddenInput.value) ? hiddenInput.value : "cube";
+    hiddenInput.value = currentValue;
+    drawPreview(currentValue);
+    renderChoices();
+
+    trigger.addEventListener("click", () => {
+      popup.hidden = !popup.hidden;
+      if (!popup.hidden) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    });
+
+    searchInput.addEventListener("input", () => {
+      renderChoices(searchInput.value);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!field.contains(event.target)) {
+        popup.hidden = true;
+      }
+    });
+  });
+}
+
+function tablerIconUrl(name) {
+  return `https://unpkg.com/@tabler/icons@${TABLER_VERSION}/icons/outline/${name}.svg`;
+}
+
+function tablerIconImage(name, className = "tabler-icon-image") {
+  const safeName = iconChoices.includes(name) ? name : "cube";
+  return `<img class="${className}" src="${tablerIconUrl(safeName)}" alt="${escapeHtml(safeName)}" onerror="this.onerror=null;this.src='${tablerIconUrl("cube")}';" />`;
 }
 
 function createLinkRow(containerId, link = { label: "", url: "" }) {
@@ -86,33 +221,20 @@ function wireCreateModal() {
   if (!modal || !openButton || !closeButton || !form) return;
 
   openButton.addEventListener("click", () => {
-    if (!document.getElementById("create-links").children.length) {
-      createLinkRow("create-links");
-    }
     modal.showModal();
   });
   closeButton.addEventListener("click", () => modal.close());
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const payload = {
-      name: form.name.value.trim(),
-      folder_path: form.folder_path.value.trim(),
-      compose_file: form.compose_file.value.trim() || null,
-      icon: form.icon.value.trim() || "cube",
-      color: form.color.value,
-      notes: form.notes.value.trim(),
-      links: collectLinks(form),
-    };
     try {
-      await sendJson("/api/apps", {
+      await sendJson("/api/discovery/sync", {
         method: "POST",
-        body: JSON.stringify(payload),
       });
-      message.textContent = "Saved. Reloading dashboard...";
+      message.textContent = "Scanned. Reloading...";
       window.location.reload();
     } catch (error) {
-      message.textContent = error.detail?.message || error.detail || "Could not save app.";
+      message.textContent = error.detail?.message || error.detail || "Could not scan apps.";
     }
   });
 }
@@ -125,18 +247,6 @@ function wireLinkButtons() {
   });
 }
 
-async function refreshGrid() {
-  const grid = document.getElementById("app-grid");
-  if (!grid) return;
-  const data = await sendJson("/api/apps", { method: "GET" });
-  const apps = data.apps || [];
-  if (!apps.length) {
-    window.location.reload();
-    return;
-  }
-  grid.innerHTML = apps.map(renderCard).join("");
-}
-
 function renderCard(app) {
   const links = app.links?.length
     ? app.links
@@ -144,20 +254,23 @@ function renderCard(app) {
         .map((link) => `<a href="${link.url}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}</a>`)
         .join("")
     : '<span class="muted">No links</span>';
+  const missingClass = app.runtime.folder_exists ? "" : " app-tile-missing";
+  const statusText = app.runtime.folder_exists ? app.runtime.health : "Folder not found";
+  const statusClass = app.runtime.folder_exists ? "" : ' class="missing-label"';
 
   return `
-    <article class="app-tile" data-app-id="${app.id}">
+    <article class="app-tile${missingClass}" data-app-id="${app.id}">
       <a class="app-tile-link" href="/apps/${app.id}">
         <div class="app-icon-shell">
           <div class="app-icon app-icon-dashboard" style="--app-color: ${app.color};">
-            <span>${escapeHtml(app.icon)}</span>
+            ${tablerIconImage(app.icon)}
           </div>
           <span class="app-health-dot health-${escapeHtml(app.runtime.health)}" title="${escapeHtml(app.runtime.health)}"></span>
           <span class="app-settings-chip">Settings</span>
         </div>
         <div class="app-labels">
           <h3>${escapeHtml(app.name)}</h3>
-          <p>${escapeHtml(app.runtime.health)}</p>
+          <p${statusClass}>${escapeHtml(statusText)}</p>
         </div>
       </a>
       <div class="app-tile-links">${links}</div>
@@ -202,7 +315,6 @@ function wireDetail() {
   const updateForm = document.getElementById("update-app-form");
   const updateMessage = document.getElementById("update-form-message");
   const actionMessage = document.getElementById("action-message");
-  const refreshStatusButton = document.getElementById("refresh-status");
   const deleteButton = document.getElementById("delete-app");
 
   if ((detailData.app.links || []).length) {
@@ -230,20 +342,6 @@ function wireDetail() {
       }
     });
   });
-
-  if (refreshStatusButton) {
-    refreshStatusButton.addEventListener("click", async () => {
-      actionMessage.textContent = "Refreshing status...";
-      try {
-        const result = await sendJson(`/api/apps/${appId}/status`, { method: "GET" });
-        renderServiceList(result.runtime);
-        actionMessage.textContent = "Status refreshed.";
-        window.setTimeout(() => window.location.reload(), 300);
-      } catch {
-        actionMessage.textContent = "Could not refresh status.";
-      }
-    });
-  }
 
   if (updateForm) {
     updateForm.addEventListener("submit", async (event) => {
@@ -286,5 +384,6 @@ function wireDetail() {
 
 wireLinkButtons();
 wireColorInputs();
+wireIconPickers();
 wireDashboard();
 wireDetail();

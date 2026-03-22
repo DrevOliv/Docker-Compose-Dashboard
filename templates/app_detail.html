@@ -11,36 +11,44 @@
     <a class="back-link" href="/">Back to dashboard</a>
     <section class="detail-hero">
       <div class="detail-icon" style="--app-color: {{ app_item.color }};">
-        <span>{{ app_item.icon }}</span>
+        <img
+          class="tabler-icon-image"
+          src="https://unpkg.com/@tabler/icons@3.40.0/icons/outline/{{ app_item.icon }}.svg"
+          alt="{{ app_item.icon }}"
+          onerror="this.onerror=null;this.src='https://unpkg.com/@tabler/icons@3.40.0/icons/outline/cube.svg';"
+        />
       </div>
       <div class="detail-copy">
         <p class="eyebrow">Compose App</p>
         <h1>{{ app_item.name }}</h1>
-        <p>{{ app_item.folder_path }}</p>
-        <div class="status-row">
-          <span class="status-pill state-{{ runtime.overall_state }}">{{ runtime.overall_state }}</span>
-          <span class="status-pill health-{{ runtime.health }}">{{ runtime.health }}</span>
+        <div class="status-overview">
+          <div class="status-group">
+            <span class="status-label">State</span>
+            <span class="status-pill state-{{ runtime.overall_state }}">{{ runtime.overall_state }}</span>
+          </div>
+          <div class="status-group">
+            <span class="status-label">Health</span>
+            <span class="status-pill health-{{ runtime.health }}">{{ runtime.health }}</span>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="detail-layout">
-      <article class="panel">
+      <article class="panel panel-actions">
         <div class="panel-head">
           <h2>Actions</h2>
-          <button class="secondary-button" id="refresh-status">Refresh status</button>
         </div>
         <div class="action-grid">
           <button class="primary-button" data-action="up">Start</button>
-          <button class="secondary-button" data-action="pull">Pull images</button>
-          <button class="secondary-button" data-action="restart">Restart</button>
           <button class="danger-button" data-action="down">Stop</button>
-          <button class="primary-button" data-action="refresh">Refresh</button>
+          <button class="secondary-button" data-action="restart">Restart</button>
+          <button class="secondary-button" data-action="refresh">Update</button>
         </div>
         <p class="form-message" id="action-message"></p>
       </article>
 
-      <article class="panel">
+      <article class="panel panel-links">
         <div class="panel-head">
           <h2>Service Links</h2>
         </div>
@@ -55,7 +63,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel panel-services">
         <div class="panel-head">
           <h2>Services</h2>
         </div>
@@ -79,29 +87,34 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel panel-settings">
         <div class="panel-head">
           <h2>Settings</h2>
         </div>
-        <form id="update-app-form" class="modal-form inline-form">
+        <form id="update-app-form" class="detail-form">
           <label>
             Name
             <input type="text" name="name" value="{{ app_item.name }}" required />
           </label>
-          <label>
-            Folder path
-            <input type="text" name="folder_path" value="{{ app_item.folder_path }}" required />
-          </label>
+          <input type="hidden" name="folder_path" value="{{ app_item.folder_path }}" />
           <label>
             Compose file
             <input type="text" name="compose_file" value="{{ app_item.compose_file or '' }}" placeholder="Only needed for custom filenames" />
           </label>
           <p class="field-note">Common compose filenames are found automatically.</p>
           <div class="split-fields">
-            <label>
-              Icon text
-              <input type="text" name="icon" value="{{ app_item.icon }}" maxlength="10" />
-            </label>
+            <div class="icon-picker-field">
+              <label>Icon</label>
+              <input type="hidden" name="icon" value="{{ app_item.icon }}" data-icon-value />
+              <button type="button" class="icon-trigger" data-icon-trigger>
+                <span class="icon-trigger-preview" data-icon-preview></span>
+                <span class="icon-trigger-label" data-icon-label>{{ app_item.icon }}</span>
+              </button>
+              <div class="icon-popup" data-icon-popup hidden>
+                <input type="search" class="icon-search" placeholder="Search icons" data-icon-search />
+                <div class="icon-picker" data-icon-picker></div>
+              </div>
+            </div>
             <label class="color-field">
               Accent color
               <input class="color-swatch-input" type="color" name="color" value="{{ app_item.color }}" data-color-input />

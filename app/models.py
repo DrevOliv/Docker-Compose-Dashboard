@@ -16,6 +16,7 @@ class AppEntry(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     folder_path: str = Field(min_length=1)
     compose_file: str | None = None
+    source: str = Field(default="mounted")
     icon: str = Field(default="cube")
     color: str = Field(default="#2563eb")
     links: list[ServiceLink] = Field(default_factory=list)
@@ -56,6 +57,7 @@ class ComposeServiceStatus(BaseModel):
 
 
 class AppRuntimeStatus(BaseModel):
+    folder_exists: bool = True
     overall_state: str = "unknown"
     health: str = "unknown"
     compose_detected: bool = False

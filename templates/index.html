@@ -22,18 +22,23 @@
       </div>
       <div class="app-grid" id="app-grid">
         {% for app in apps %}
-        <article class="app-tile" data-app-id="{{ app.id }}">
+        <article class="app-tile{% if not app.runtime.folder_exists %} app-tile-missing{% endif %}" data-app-id="{{ app.id }}">
           <a class="app-tile-link" href="/apps/{{ app.id }}">
             <div class="app-icon-shell">
               <div class="app-icon app-icon-dashboard" style="--app-color: {{ app.color }};">
-                <span>{{ app.icon }}</span>
+                <img
+                  class="tabler-icon-image"
+                  src="https://unpkg.com/@tabler/icons@3.40.0/icons/outline/{{ app.icon }}.svg"
+                  alt="{{ app.icon }}"
+                  onerror="this.onerror=null;this.src='https://unpkg.com/@tabler/icons@3.40.0/icons/outline/cube.svg';"
+                />
               </div>
               <span class="app-health-dot health-{{ app.runtime.health }}" title="{{ app.runtime.health }}"></span>
               <span class="app-settings-chip">Settings</span>
             </div>
             <div class="app-labels">
               <h3>{{ app.name }}</h3>
-              <p>{{ app.runtime.health }}</p>
+              <p{% if not app.runtime.folder_exists %} class="missing-label"{% endif %}>{% if not app.runtime.folder_exists %}Folder not found{% else %}{{ app.runtime.health }}{% endif %}</p>
             </div>
           </a>
           <div class="app-tile-links">
@@ -59,39 +64,12 @@
   <dialog class="modal" id="create-modal">
     <form class="modal-form" id="create-app-form">
       <div class="modal-head">
-        <h2>Add compose app</h2>
+        <h2>Add app</h2>
         <button type="button" class="ghost-button" data-close-modal>Close</button>
       </div>
-      <label>
-        Name
-        <input type="text" name="name" placeholder="Media" required />
-      </label>
-      <label>
-        Folder path
-        <input type="text" name="folder_path" placeholder="/path/to/app" required />
-      </label>
-      <label>
-        Compose file
-        <input type="text" name="compose_file" placeholder="Only needed for custom filenames" />
-      </label>
-      <p class="field-note">Common compose filenames are found automatically.</p>
-      <div class="split-fields">
-        <label>
-          Icon text
-          <input type="text" name="icon" value="cube" maxlength="10" />
-        </label>
-        <label class="color-field">
-          Accent color
-          <input class="color-swatch-input" type="color" name="color" value="#2563eb" data-randomize-color data-color-input />
-        </label>
-      </div>
-      <label>
-        Notes
-        <textarea name="notes" rows="3" placeholder="Notes"></textarea>
-      </label>
-      <div class="link-editor" id="create-links"></div>
-      <button type="button" class="secondary-button" data-add-link="create-links">Add link</button>
-      <button type="submit" class="primary-button">Save app</button>
+      <p class="field-note">Mount each service folder inside <strong>{{ apps_root }}</strong> and reload or scan.</p>
+      <p class="field-note">Common compose filenames are picked up automatically. Custom filenames can be added in app settings later.</p>
+      <button type="submit" class="primary-button">Scan {{ apps_root }}</button>
       <p class="form-message" id="create-form-message"></p>
     </form>
   </dialog>

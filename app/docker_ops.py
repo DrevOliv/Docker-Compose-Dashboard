@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,16 @@ DEFAULT_COMPOSE_FILES = (
 
 class ComposeError(RuntimeError):
     pass
+
+
+def resolve_compose_binary() -> list[str]:
+    docker_bin = shutil.which("docker")
+    if docker_bin:
+        return [docker_bin, "compose"]
+    docker_compose_bin = shutil.which("docker-compose")
+    if docker_compose_bin:
+        return [docker_compose_bin]
+    raise ComposeError("Docker Compose is not installed in the container.")
 
 
 def detect_default_compose_file(folder_path: str | Path) -> Path | None:
@@ -44,7 +55,7 @@ def build_compose_command(app: AppEntry, *args: str) -> tuple[list[str], Path]:
     if compose_file is None:
         raise ComposeError("No docker compose file was found in this folder.")
 
-    cmd = ["docker", "compose", "-f", str(compose_file), *args]
+    cmd = [*resolve_compose_binary(), "-f", str(compose_file), *args]
     return cmd, folder
 
 
@@ -81,10 +92,23 @@ def run_action(app: AppEntry, action: str) -> str:
 
 
 def get_runtime_status(app: AppEntry) -> AppRuntimeStatus:
-    compose_file = resolve_compose_file(app)
     checked_at = datetime.now(timezone.utc)
+    folder = Path(app.folder_path).expanduser()
+    if not folder.exists():
+        return AppRuntimeStatus(
+            folder_exists=False,
+            overall_state="missing",
+            health="missing",
+            compose_detected=False,
+            compose_file=None,
+            error="Folder not found.",
+            last_checked=checked_at,
+        )
+
+    compose_file = resolve_compose_file(app)
     if compose_file is None:
         return AppRuntimeStatus(
+            folder_exists=True,
             compose_detected=False,
             compose_file=None,
             error="Compose file not found.",
@@ -95,6 +119,7 @@ def get_runtime_status(app: AppEntry) -> AppRuntimeStatus:
         output = run_compose(app, "ps", "--format", "json")
     except ComposeError as exc:
         return AppRuntimeStatus(
+            folder_exists=True,
             compose_detected=True,
             compose_file=str(compose_file),
             error=str(exc),
@@ -135,6 +160,7 @@ def get_runtime_status(app: AppEntry) -> AppRuntimeStatus:
     overall_state = derive_overall_state(services)
     health = derive_health(services)
     return AppRuntimeStatus(
+        folder_exists=True,
         overall_state=overall_state,
         health=health,
         compose_detected=True,

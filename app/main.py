@@ -1,19 +1,26 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from dotenv import load_dotenv
 
 from .docker_ops import ComposeError, detect_default_compose_file, get_runtime_status, run_action
 from .models import AppCreate, AppUpdate, ComposeActionRequest
 from .store import AppStore
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+print(BASE_DIR)
+load_dotenv(BASE_DIR / ".env")
 DATA_DIR = BASE_DIR / "data"
 STORE = AppStore(DATA_DIR / "apps.json")
+DEV_MODE = os.getenv("DEV_MODE", "false").lower() in {"1", "true", "yes", "on"}
+DEFAULT_APPS_ROOT = BASE_DIR / "apps" if DEV_MODE else Path("/apps")
+APPS_ROOT = Path(os.getenv("APPS_ROOT", str(DEFAULT_APPS_ROOT))).expanduser()
 
 app = FastAPI(title="Docker Compose Manager")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -28,6 +35,28 @@ def serialize_dashboard_apps() -> list[dict]:
         app_payload["runtime"] = runtime.model_dump(mode="json")
         apps.append(app_payload)
     return apps
+
+
+def discover_mounted_apps() -> list[dict[str, str | None]]:
+    if not APPS_ROOT.exists() or not APPS_ROOT.is_dir():
+        return []
+
+    discovered: list[dict[str, str | None]] = []
+    for entry in sorted(APPS_ROOT.iterdir(), key=lambda item: item.name.lower()):
+        if not entry.is_dir():
+            continue
+        compose_file = detect_default_compose_file(entry)
+        discovered.append(
+            {
+                "folder_path": str(entry),
+                "compose_file": compose_file.name if compose_file else None,
+            }
+        )
+    return discovered
+
+
+def sync_mounted_apps() -> None:
+    STORE.sync_discovered_apps(discover_mounted_apps())
 
 
 def validate_compose_payload(folder_path: str, compose_file: str | None) -> None:
@@ -50,17 +79,20 @@ def validate_compose_payload(folder_path: str, compose_file: str | None) -> None
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
+    sync_mounted_apps()
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "apps": serialize_dashboard_apps(),
+            "apps_root": str(APPS_ROOT),
         },
     )
 
 
 @app.get("/apps/{app_id}", response_class=HTMLResponse)
 async def app_detail(request: Request, app_id: str) -> HTMLResponse:
+    sync_mounted_apps()
     app_entry = STORE.get_app(app_id)
     if app_entry is None:
         raise HTTPException(status_code=404, detail="App not found.")
@@ -77,7 +109,14 @@ async def app_detail(request: Request, app_id: str) -> HTMLResponse:
 
 @app.get("/api/apps")
 async def list_apps() -> dict:
+    sync_mounted_apps()
     return {"apps": serialize_dashboard_apps()}
+
+
+@app.post("/api/discovery/sync")
+async def sync_apps() -> dict:
+    sync_mounted_apps()
+    return {"ok": True, "apps": serialize_dashboard_apps()}
 
 
 @app.post("/api/apps", status_code=201)
