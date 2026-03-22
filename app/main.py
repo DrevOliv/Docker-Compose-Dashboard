@@ -42,14 +42,21 @@ def discover_mounted_apps() -> list[dict[str, str | None]]:
         return []
 
     discovered: list[dict[str, str | None]] = []
-    for entry in sorted(APPS_ROOT.iterdir(), key=lambda item: item.name.lower()):
+    seen_paths: set[str] = set()
+    for entry in sorted(APPS_ROOT.rglob("*"), key=lambda item: str(item).lower()):
         if not entry.is_dir():
             continue
         compose_file = detect_default_compose_file(entry)
+        if compose_file is None:
+            continue
+        folder_path = str(entry)
+        if folder_path in seen_paths:
+            continue
+        seen_paths.add(folder_path)
         discovered.append(
             {
-                "folder_path": str(entry),
-                "compose_file": compose_file.name if compose_file else None,
+                "folder_path": folder_path,
+                "compose_file": compose_file.name,
             }
         )
     return discovered
