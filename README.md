@@ -1,64 +1,120 @@
-# Docker Compose Manager
+# Compose Manager
 
-A FastAPI web app for registering folders that contain Docker Compose files and controlling them from a clean dashboard.
+Compose Manager is a FastAPI web application for discovering, monitoring, and controlling Docker Compose stacks from a single interface.
 
-## Features
+It is designed for self-hosted environments where multiple services live in mounted folders on the host. The application scans those folders for Compose files, adds each stack to a dashboard automatically, and lets you manage each app from a clean web UI.
 
-- iPhone-style app grid on the front page
-- Auto-discover mounted app folders inside `/apps`
-- Per-app settings for icon, color, notes, and unlimited service links
-- Docker actions: up, down, pull, restart, and pull + recreate
-- Status overview with service state and health when Docker exposes it
+## What it does
+
+- Discovers Docker Compose apps automatically from a mounted apps directory
+- Shows stacks in a visual app-style dashboard
+- Displays runtime state and service health when Docker reports it
+- Supports common stack actions from the UI:
+  - Start
+  - Stop
+  - Restart
+  - Update
+- Lets you customize each app with:
+  - Name
+  - Icon
+  - Accent color
+  - Notes
+  - Service links
+- Handles missing folders gracefully by marking apps as unavailable instead of failing silently
+
+## How discovery works
+
+Compose Manager scans the configured apps root and searches recursively for folders that contain a standard Docker Compose filename:
+
+- `compose.yaml`
+- `compose.yml`
+- `docker-compose.yaml`
+- `docker-compose.yml`
+
+If a Compose file is found in:
+
+```text
+/apps/media/jellyfin/docker-compose.yml
+/apps/media/radarr/compose.yaml
+```
+
+the dashboard will show:
+
+- `jellyfin`
+- `radarr`
+
+The app name is based on the folder that contains the Compose file.
+
+If a stack uses a non-standard Compose filename, it can still be added and configured later through the app settings.
+
+## Requirements
+
+- Python 3.12+ for local development
+- Docker and Docker Compose access on the target host
+- A mounted apps directory that the container can read
+- Access to `/var/run/docker.sock` if you want the UI to control the host Docker engine
 
 ## Run locally
 
-The project supports `.env`-based dev mode. With `DEV_MODE=true`, the app scans [`/Users/oliver/Documents/Dev/DockerManager/.apps`](/Users/oliver/Documents/Dev/DockerManager/.apps) instead of `/apps`.
+Local development uses `.env` and supports a development apps root.
 
-1. Create a virtual environment and install dependencies:
+With `DEV_MODE=true`, the app scans the local [`/Users/oliver/Documents/Dev/DockerManager/.apps`](/Users/oliver/Documents/Dev/DockerManager/.apps) directory instead of `/apps`.
+
+### 1. Create and activate a virtual environment
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-2. Start the app:
+### 3. Start the application
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-3. Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
+### 4. Open the UI
 
-4. Put local test stacks inside:
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+### 5. Add local test stacks
+
+Example:
 
 ```text
 .apps/
-  jellyfin/
-  radarr/
-  nextcloud/
+  media/
+    jellyfin/
+      docker-compose.yml
+    radarr/
+      compose.yaml
+  cloud/
+    nextcloud/
+      docker-compose.yml
 ```
 
-## Build and upload the Docker image
+## Run with Docker
 
-1. Build the image and upload to docker hub:
+This is the recommended deployment model.
 
-```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t drevoliv/compose-manager:latest --push .
-```
+The container:
 
-2. Pull it anywhere:
+- serves the web UI
+- scans a mounted apps directory
+- talks to the host Docker engine through the Docker socket
 
-```bash
-docker pull your-dockerhub-username/compose-manager:latest
-```
-
-## Run the image
-
-Recommended host-control run:
+### Recommended run command
 
 ```bash
-docker run -p 8000:8000 \
+docker run -d \
+  --name compose-manager \
+  -p 8000:8000 \
   -e APPS_ROOT=/apps \
   -v "$(pwd)/data:/app/data" \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -66,19 +122,29 @@ docker run -p 8000:8000 \
   your-dockerhub-username/compose-manager:latest
 ```
 
-The app scans subfolders inside `/apps` and auto-adds them to the dashboard.
+Or using the docker compose example
 
-Example:
+Then open:
+
+[http://localhost:8000](http://localhost:8000)
+
+### Example host folder layout
 
 ```text
-/srv/apps/jellyfin
-/srv/apps/nextcloud
-/srv/apps/radarr
+/srv/apps/
+  media/
+    jellyfin/
+      docker-compose.yml
+    radarr/
+      compose.yaml
+  cloud/
+    nextcloud/
+      docker-compose.yml
 ```
 
-Each of those folders should contain a compose file with a common name like `compose.yaml` or `docker-compose.yml`. If a folder uses a custom compose filename, the app still gets discovered and you can set the filename later in that app's settings.
+## Important volume note
 
-You cannot mount two different host folders to the exact same container path like this:
+Do not mount multiple host folders to the same container path:
 
 ```bash
 -v ./service1:/apps
@@ -87,21 +153,60 @@ You cannot mount two different host folders to the exact same container path lik
 
 The second mount hides the first one.
 
-Use one parent folder:
+Use either:
 
 ```bash
 -v /srv/apps:/apps
 ```
 
-Or mount each service to its own subfolder:
+or distinct subpaths:
 
 ```bash
 -v ./service1:/apps/service1
 -v ./service2:/apps/service2
 ```
 
+# Dev tips
+
+## Build the Docker image
+
+Build locally:
+
+```bash
+docker build -t your-dockerhub-username/compose-manager:latest .
+```
+
+Build and push multi-arch with Buildx:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t your-dockerhub-username/compose-manager:latest \
+  --push .
+```
+
+Pull later with:
+
+```bash
+docker pull your-dockerhub-username/compose-manager:latest
+```
+
+## Data storage
+
+Application metadata is stored in:
+
+[`/Users/oliver/Documents/Dev/DockerManager/data/apps.json`](/Users/oliver/Documents/Dev/DockerManager/data/apps.json)
+
+This file contains app configuration such as:
+
+- display name
+- selected icon
+- accent color
+- notes
+- service links
+
 ## Notes
 
-- The app stores registered compose folders in [`data/apps.json`](/Users/oliver/Documents/Dev/DockerManager/data/apps.json).
-- Compose commands run through `docker compose` or `docker-compose`, depending on what is available in the container.
-- Health badges depend on what `docker compose ps --format json` reports for each service.
+- Compose Manager uses `docker compose` when available and falls back to `docker-compose` if needed.
+- Service health depends on what Docker reports through `docker compose ps --format json`.
+- If an app folder disappears, the dashboard keeps the app visible and marks it as missing.
