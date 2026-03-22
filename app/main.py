@@ -14,7 +14,6 @@ from .models import AppCreate, AppUpdate, ComposeActionRequest
 from .store import AppStore
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-print(BASE_DIR)
 load_dotenv(BASE_DIR / ".env")
 DATA_DIR = BASE_DIR / "data"
 STORE = AppStore(DATA_DIR / "apps.json")

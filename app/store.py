@@ -134,6 +134,7 @@ class AppStore:
     def sync_discovered_apps(self, discovered_apps: list[dict[str, str | None]]) -> bool:
         data = self.load()
         known_by_path = {app.folder_path: app for app in data.apps}
+        discovered_paths = {str(item["folder_path"]) for item in discovered_apps}
         changed = False
         now = datetime.now(timezone.utc)
 
@@ -168,6 +169,14 @@ class AppStore:
                 index = data.apps.index(existing)
                 data.apps[index] = updated
                 changed = True
+
+        filtered_apps = []
+        for app in data.apps:
+            if app.source == "mounted" and app.folder_path not in discovered_paths:
+                changed = True
+                continue
+            filtered_apps.append(app)
+        data.apps = filtered_apps
 
         if changed:
             self.save(data)

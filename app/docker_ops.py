@@ -128,12 +128,7 @@ def get_runtime_status(app: AppEntry) -> AppRuntimeStatus:
 
     services: list[ComposeServiceStatus] = []
     if output:
-        try:
-            decoded = json.loads(output)
-            if isinstance(decoded, dict):
-                decoded = [decoded]
-        except json.JSONDecodeError:
-            decoded = []
+        decoded = parse_ps_output(output)
     else:
         decoded = []
 
@@ -151,7 +146,7 @@ def get_runtime_status(app: AppEntry) -> AppRuntimeStatus:
         services.append(
             ComposeServiceStatus(
                 name=item.get("Service") or item.get("Name") or "unknown",
-                state=state.lower(),
+                state=normalize_state(str(state)),
                 health=str(health).lower(),
                 published_ports=ports,
             )
@@ -198,3 +193,44 @@ def derive_health(services: list[ComposeServiceStatus]) -> str:
         if running_states == {"running"}:
             return "running"
     return next(iter(healths), "unknown")
+
+
+def parse_ps_output(output: str) -> list[dict]:
+    try:
+        decoded = json.loads(output)
+        if isinstance(decoded, dict):
+            return [decoded]
+        if isinstance(decoded, list):
+            return decoded
+    except json.JSONDecodeError:
+        pass
+
+    items: list[dict] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            decoded_line = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(decoded_line, dict):
+            items.append(decoded_line)
+    return items
+
+
+def normalize_state(state: str) -> str:
+    lowered = state.strip().lower()
+    if lowered.startswith("running"):
+        return "running"
+    if lowered.startswith("exited"):
+        return "exited"
+    if lowered.startswith("created"):
+        return "created"
+    if lowered.startswith("restarting"):
+        return "restarting"
+    if lowered.startswith("paused"):
+        return "paused"
+    if lowered.startswith("dead"):
+        return "dead"
+    return lowered or "unknown"
